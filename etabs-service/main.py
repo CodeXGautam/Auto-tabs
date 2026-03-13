@@ -6,7 +6,11 @@ delegates all ETABS COM work to etabs_client.py.
 
 Run with:  python main.py
 Listens on: http://localhost:5000
+
+comtypes manages COM initialization internally — no manual CoInitialize needed.
+threaded=False and use_reloader=False keep all COM calls on a single thread.
 """
+import traceback
 from flask import Flask, request, jsonify
 from etabs_client import build_and_analyze
 
@@ -37,9 +41,17 @@ def build_model():
         results = build_and_analyze(model)
         return jsonify(results)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        tb = traceback.format_exc()
+        print(f"ETABS error:\n{tb}")
+        return jsonify({"error": str(e), "traceback": tb}), 500
 
 
 if __name__ == "__main__":
     print("ETABS microservice starting on http://localhost:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=True,
+        threaded=False,      # All requests on the main COM thread
+        use_reloader=False,  # Prevent process fork that loses COM apartment
+    )
