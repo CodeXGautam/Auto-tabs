@@ -42,6 +42,7 @@ export interface AnalysisResponse {
   success: boolean;
   buildingModel: unknown; // The LLM-generated model (for debugging display)
   results: AnalysisResult;
+  pdfUrl?: string; // Present when a PDF was uploaded and stored on Cloudinary
 }
 
 /** Error response from backend */
