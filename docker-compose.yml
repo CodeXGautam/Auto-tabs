@@ -3,20 +3,6 @@
 #       It needs win32com which only works on Windows with ETABS installed.
 
 services:
-  # ── Ollama (local LLM server) ──────────────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama     # Persist downloaded models
-    # Uncomment the line below if you have an NVIDIA GPU:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - capabilities: [gpu]
-
   # ── Node.js Backend (Express API) ───────────────────────────
   backend:
     build: ./backend
@@ -24,22 +10,20 @@ services:
       - "3000:3000"
     env_file: .env
     environment:
-      - OLLAMA_URL=http://ollama:11434              # Ollama container hostname
       - ETABS_SERVICE_URL=http://host.docker.internal:5000  # ETABS on Windows host
-    depends_on:
-      - ollama
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # ── React Frontend (Vite dev server) ───────────────────────
+  # ── React Frontend (Vite dev server) ────────────────────────
   frontend:
     build: ./frontend
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://backend:3000             # Proxy to backend container
+      - VITE_API_URL=http://localhost:3000/api
     depends_on:
       - backend
-
-volumes:
-  ollama_data:
