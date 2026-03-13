@@ -1,16 +1,15 @@
 """
-etabs-service/etabs_client.py — ETABS COM automation via win32com
+etabs-service/etabs_client.py — ETABS COM automation via comtypes
 
-This module handles ALL communication with ETABS through the COM API.
-It is the only place in the entire project that imports win32com.
+Uses comtypes (not win32com) because comtypes generates vtable bindings
+directly from the ETABS type library. win32com's IDispatch late-binding
+cannot marshal the SapModel interface across COM apartments.
 
 ETABS version: 21 (ProgID: CSI.ETABS.API.ETABSObject)
-Will auto-launch ETABS if not already running.
-
 Reference: CSI ETABS API Documentation (installed with ETABS)
 """
 import os
-import win32com.client
+import comtypes.client
 
 
 # ── Where to save the .edb file ──────────────────────────────
@@ -20,17 +19,17 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def get_etabs():
     """
-    Connect to a running ETABS instance or launch a new one.
-    Returns (EtabsObject, SapModel) tuple.
+    Connect to ETABS via comtypes.
+
+    Uses CSI.ETABS.API.Helper to create the ETABS object — this is the
+    pattern from CSI's own Python API examples. comtypes reads the type
+    library and builds vtable bindings, bypassing IDispatch entirely.
     """
-    try:
-        # Try connecting to already-running ETABS first
-        etabs = win32com.client.GetActiveObject("CSI.ETABS.API.ETABSObject")
-    except Exception:
-        # Launch a new ETABS instance
-        helper = win32com.client.Dispatch("CSI.ETABS.API.Helper")
-        etabs = helper.CreateObjectProgID("CSI.ETABS.API.ETABSObject")
-        etabs.ApplicationStart()
+    print("Connecting to ETABS via comtypes Helper...")
+    helper = comtypes.client.CreateObject("CSI.ETABS.API.Helper")
+    etabs  = helper.CreateObjectProgID("CSI.ETABS.API.ETABSObject")
+    etabs.ApplicationStart()
+    print("ETABS started")
 
     sap_model = etabs.SapModel
     sap_model.InitializeNewModel()
@@ -43,9 +42,9 @@ def build_and_analyze(model: dict) -> dict:
     Main function: takes a building model dict, creates the ETABS model,
     runs analysis, and returns results.
 
-    This is a skeleton — each section below is a placeholder for the
-    actual ETABS COM API calls. They are separated into clear steps
-    so you can implement and test them one at a time.
+    COM is initialized once on the main thread in main.py — do not call
+    CoInitialize here. Flask runs single-threaded (threaded=False) so all
+    calls stay on the same COM apartment.
     """
     etabs, sap = get_etabs()
 
