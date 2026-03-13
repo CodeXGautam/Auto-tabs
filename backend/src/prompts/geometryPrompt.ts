@@ -1,17 +1,17 @@
 /**
  * backend/src/prompts/geometryPrompt.ts — LLM prompt template
  *
- * This is the core prompt sent to Ollama/Llama. It embeds actual IS code
+ * This is the core prompt sent to Gemini. It embeds actual IS code
  * parameter tables so the LLM picks correct values instead of hallucinating.
  *
- * IMPORTANT: We do NOT rely on Llama's training data for IS code values.
+ * IMPORTANT: We do NOT rely on the LLM's training data for IS code values.
  * Every seismic factor, load value, and material property is provided
  * here as a reference lookup table.
  */
-import type { AnalysisRequest } from "../schemas/buildingModel.js";
+import type { AnalysisRequest, AnalysisRequestWithPdf } from "../schemas/buildingModel.js";
 
 // ── Embedded IS code reference tables ────────────────────────
-// These are the authoritative values — Llama must choose from these.
+// These are the authoritative values — the LLM must choose from these.
 
 const IS_CODE_TABLES = `
 === IS 1893 (Part 1):2016 — Seismic Zone Factors (Table 3) ===
@@ -163,4 +163,116 @@ REQUIRED OUTPUT FORMAT (JSON only, no other text):
 }`;
 
   return { system: SYSTEM_PROMPT, user };
+}
+
+// ── PDF-aware prompt builder ─────────────────────────────────
+
+const JSON_OUTPUT_TEMPLATE = `
+REQUIRED OUTPUT FORMAT (JSON only, no other text):
+{
+  "building": {
+    "numStoreys": <int>,
+    "storeyHeight": <float in metres>,
+    "numBaysX": <int>,
+    "numBaysY": <int>,
+    "bayWidthsX": [<float>, ...],
+    "bayWidthsY": [<float>, ...]
+  },
+  "materials": {
+    "concrete": { "grade": "<string>", "fck": <float> },
+    "steel": { "grade": "<string>", "fy": <float> }
+  },
+  "sections": {
+    "columns": { "width": <float>, "depth": <float> },
+    "beams": { "width": <float>, "depth": <float> },
+    "slabThickness": <float>
+  },
+  "loads": {
+    "dead": { "floorFinish": <float kN/m2>, "wallLoad": <float kN/m> },
+    "live": { "typical": <float kN/m2>, "roof": <float kN/m2> },
+    "seismic": {
+      "zone": "<II|III|IV|V>",
+      "zoneFactor": <float>,
+      "importanceFactor": <float>,
+      "responseReductionFactor": <float>,
+      "soilType": "<I|II|III>",
+      "dampingRatio": 0.05
+    }
+  },
+  "loadCombinations": [
+    {
+      "name": "<string>",
+      "factors": { "dead": <float>, "live": <float>, "eqx": <float or omit>, "eqy": <float or omit> }
+    }
+  ]
+}`;
+
+/**
+ * Build a prompt for PDF mode. The PDF itself is sent as inline data to Gemini
+ * (not as extracted text), so this prompt only includes manual overrides
+ * and instructions for Gemini to read the attached PDF.
+ * Manual fields ALWAYS take precedence over PDF content.
+ */
+export function buildGeometryPromptWithPdf(
+  req: AnalysisRequestWithPdf
+): { system: string; user: string } {
+  // If all manual fields are present, delegate to the standard prompt builder
+  if (isCompleteManualRequest(req)) {
+    return buildGeometryPrompt(req as AnalysisRequest);
+  }
+
+  // Build the "manual overrides" section — only fields the user provided
+  const overrides: string[] = [];
+  if (req.numStoreys !== undefined) overrides.push(`- Number of storeys: ${req.numStoreys}`);
+  if (req.storeyHeight !== undefined) overrides.push(`- Storey height: ${req.storeyHeight} m`);
+  if (req.numBaysX !== undefined) overrides.push(`- Bays in X: ${req.numBaysX}`);
+  if (req.numBaysY !== undefined) overrides.push(`- Bays in Y: ${req.numBaysY}`);
+  if (req.bayWidthX !== undefined) overrides.push(`- Bay width X: ${req.bayWidthX} m`);
+  if (req.bayWidthY !== undefined) overrides.push(`- Bay width Y: ${req.bayWidthY} m`);
+  if (req.concreteGrade) overrides.push(`- Concrete grade: ${req.concreteGrade}`);
+  if (req.steelGrade) overrides.push(`- Steel grade: ${req.steelGrade}`);
+  if (req.seismicZone) overrides.push(`- Seismic zone: ${req.seismicZone}`);
+  if (req.soilType) overrides.push(`- Soil type: ${req.soilType}`);
+  if (req.isCodes?.length) overrides.push(`- Applicable IS codes: ${req.isCodes.join(", ")}`);
+
+  const sections: string[] = [];
+
+  sections.push(
+    `DOCUMENT CONTEXT: A PDF document is attached. Extract all relevant structural engineering ` +
+    `parameters (building dimensions, material specifications, loads, etc.) from it.`
+  );
+  if (req.description) {
+    sections.push(`BUILDING DESCRIPTION:\n${req.description}`);
+  }
+  if (overrides.length > 0) {
+    sections.push(
+      `MANUAL PARAMETERS (these take PRECEDENCE over any values in the document):\n${overrides.join("\n")}`
+    );
+  }
+
+  sections.push(`REFERENCE TABLES (use ONLY these values):\n${IS_CODE_TABLES}`);
+  sections.push(
+    `IMPORTANT: If the document and manual parameters conflict, ALWAYS use the manual parameter values.`
+  );
+  sections.push(JSON_OUTPUT_TEMPLATE);
+
+  const user = sections.join("\n\n");
+  return { system: SYSTEM_PROMPT, user };
+}
+
+function isCompleteManualRequest(req: AnalysisRequestWithPdf): boolean {
+  return Boolean(
+    req.description &&
+    req.numStoreys &&
+    req.numBaysX &&
+    req.numBaysY &&
+    req.bayWidthX &&
+    req.bayWidthY &&
+    req.storeyHeight &&
+    req.concreteGrade &&
+    req.steelGrade &&
+    req.seismicZone &&
+    req.soilType &&
+    req.isCodes?.length
+  );
 }
