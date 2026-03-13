@@ -6,10 +6,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true, // Needed for Docker
-    // Proxy API requests to the backend during development
+    // Proxy /api requests to the Express backend during local dev
     proxy: {
       "/api": {
-        target: process.env.VITE_API_URL || "http://localhost:3000",
+        target: "http://localhost:3000",
         changeOrigin: true,
       },
     },
