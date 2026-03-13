@@ -27,7 +27,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<AnalysisResponse | null>(null);
 
-  async function handleSubmit(data: AnalysisRequest) {
+  async function handleSubmit(data: AnalysisRequest, pdfFile?: File) {
     setLoading(true);
     setError(null);
     setResults(null);
@@ -37,7 +37,7 @@ export default function App() {
       // Small delay so user sees the validation step
       await new Promise((r) => setTimeout(r, 300));
       setStep("llm");
-      const response = await runAnalysis(data);
+      const response = await runAnalysis(data, pdfFile);
       setStep("done");
       setResults(response);
     } catch (err) {
@@ -190,7 +190,7 @@ export default function App() {
       <footer className="border-t border-gray-200/60 bg-white mt-auto">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between text-xs text-gray-400">
           <span>ETABS LLM Automation &middot; IS Code Compliant Structural Analysis</span>
-          <span className="font-mono">Ollama + ETABS 21 COM API</span>
+          <span className="font-mono">OpenRouter + ETABS 21 COM API</span>
         </div>
       </footer>
     </div>
