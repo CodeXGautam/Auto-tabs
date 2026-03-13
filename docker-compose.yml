@@ -1,0 +1,45 @@
+# docker-compose.yml — ETABS LLM Automation
+# NOTE: The ETABS Python service runs natively on the Windows host (not here).
+#       It needs win32com which only works on Windows with ETABS installed.
+
+services:
+  # ── Ollama (local LLM server) ──────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama     # Persist downloaded models
+    # Uncomment the line below if you have an NVIDIA GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
+  # ── Node.js Backend (Express API) ───────────────────────────
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      - OLLAMA_URL=http://ollama:11434              # Ollama container hostname
+      - ETABS_SERVICE_URL=http://host.docker.internal:5000  # ETABS on Windows host
+    depends_on:
+      - ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── React Frontend (Vite dev server) ───────────────────────
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://backend:3000             # Proxy to backend container
+    depends_on:
+      - backend
+
+volumes:
+  ollama_data:

@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
+@layer components {
+  /* Shared input style used by InputField, SelectField, and textarea */
+  .input-field {
+    @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+           bg-white text-gray-800
+           transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500;
+  }
+
+  /* Animated gradient for the loading state */
+  .loading-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(59, 130, 246, 0.08) 0%,
+      rgba(59, 130, 246, 0.15) 50%,
+      rgba(59, 130, 246, 0.08) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Pulsing dot for active status indicators */
+  .pulse-dot {
+    @apply relative;
+  }
+  .pulse-dot::before {
+    content: "";
+    @apply absolute -left-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-emerald-500;
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-ring {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+}
