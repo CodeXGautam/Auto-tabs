@@ -126,6 +126,25 @@ export const AnalysisRequestSchema = z.object({
 
 export type AnalysisRequest = z.infer<typeof AnalysisRequestSchema>;
 
+// ── Extended request schema (when PDF may be attached) ───────
+
+export const AnalysisRequestWithPdfSchema = z.object({
+  description: z.string().min(10).optional(),
+  numStoreys: z.number().int().min(1).max(60).optional(),
+  numBaysX: z.number().int().min(1).optional(),
+  numBaysY: z.number().int().min(1).optional(),
+  bayWidthX: z.number().positive().optional(),
+  bayWidthY: z.number().positive().optional(),
+  storeyHeight: z.number().positive().optional(),
+  concreteGrade: z.string().optional(),
+  steelGrade: z.string().optional(),
+  seismicZone: z.enum(["II", "III", "IV", "V"]).optional(),
+  soilType: z.enum(["I", "II", "III"]).optional(),
+  isCodes: z.array(z.string()).min(1).optional(),
+});
+
+export type AnalysisRequestWithPdf = z.infer<typeof AnalysisRequestWithPdfSchema>;
+
 // ── Analysis result schema (what comes back from ETABS) ──────
 
 export const AnalysisResultSchema = z.object({
