@@ -9,7 +9,7 @@ import type { AnalysisRequest } from "../types";
 import { IS_CODES } from "../types";
 
 interface Props {
-  onSubmit: (data: AnalysisRequest) => void;
+  onSubmit: (data: AnalysisRequest, pdfFile?: File) => void;
   loading: boolean;
 }
 
@@ -30,6 +30,7 @@ const DEFAULTS: AnalysisRequest = {
 
 export default function BuildingForm({ onSubmit, loading }: Props) {
   const [form, setForm] = useState<AnalysisRequest>(DEFAULTS);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -52,11 +53,32 @@ export default function BuildingForm({ onSubmit, loading }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit(form);
+    onSubmit(form, pdfFile ?? undefined);
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+
+      {/* ── 0. PDF Upload (Optional) ───────────────────── */}
+      <Section
+        number={0}
+        title="Upload PDF (Optional)"
+        subtitle="Upload a structural requirements document"
+      >
+        <PdfDropZone
+          file={pdfFile}
+          onFileSelect={setPdfFile}
+          onRemove={() => setPdfFile(null)}
+        />
+        {pdfFile && (
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            <span className="text-amber-700 font-medium">
+              PDF mode active — manual fields below are optional overrides
+            </span>
+          </div>
+        )}
+      </Section>
 
       {/* ── 1. Building Description ──────────────────────── */}
       <Section
@@ -68,10 +90,13 @@ export default function BuildingForm({ onSubmit, loading }: Props) {
           name="description"
           value={form.description}
           onChange={handleChange}
-          placeholder="e.g. 4-storey residential building with open ground floor parking, located in Seismic Zone III on medium soil..."
+          placeholder={pdfFile
+            ? "Optional — add notes to supplement the PDF, or leave blank"
+            : "e.g. 4-storey residential building with open ground floor parking, located in Seismic Zone III on medium soil..."
+          }
           rows={3}
-          required
-          minLength={10}
+          required={!pdfFile}
+          minLength={pdfFile ? 0 : 10}
           className="input-field resize-none"
         />
       </Section>
@@ -293,6 +318,91 @@ function SelectField({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+/** PDF drag-and-drop / file picker zone */
+function PdfDropZone({
+  file,
+  onFileSelect,
+  onRemove,
+}: {
+  file: File | null;
+  onFileSelect: (f: File) => void;
+  onRemove: () => void;
+}) {
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragOver(false);
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile?.type === "application/pdf") {
+      onFileSelect(droppedFile);
+    }
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0];
+    if (selected) onFileSelect(selected);
+    e.target.value = "";
+  }
+
+  if (file) {
+    return (
+      <div className="flex items-center gap-3 p-3 rounded-lg border border-brand-200 bg-brand-50/50">
+        <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+          <svg className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
+          <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-gray-400 hover:text-red-500 transition-colors p-1"
+          title="Remove PDF"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={handleDrop}
+      className={`
+        relative border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer
+        ${isDragOver
+          ? "border-brand-400 bg-brand-50/50"
+          : "border-gray-300 hover:border-gray-400 hover:bg-gray-50/50"
+        }
+      `}
+    >
+      <input
+        type="file"
+        accept=".pdf,application/pdf"
+        onChange={handleFileInput}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      />
+      <div className="flex flex-col items-center gap-2">
+        <svg className={`h-8 w-8 ${isDragOver ? "text-brand-400" : "text-gray-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+        </svg>
+        <p className="text-sm text-gray-600">
+          <span className="font-medium text-brand-600">Click to upload</span> or drag and drop
+        </p>
+        <p className="text-xs text-gray-400">PDF only, max 10 MB</p>
+      </div>
     </div>
   );
 }
